@@ -1040,7 +1040,8 @@ async function fe_merge(){
     // Store for comparison
     feStore={pivotRows,dates:allPD,vehicles:allPV,pmap,allRows,hdrs:inclDate?FE_HEADERS:FE_HEADERS.slice(1),inclDate};
     cmp_userProceeded=false;
-    gh_save(); // ← auto cloud-save
+    ls_saveStores(); // ← instant local save
+    gh_save();        // ← cloud save
   }
  
   document.getElementById('fe_pfill').style.width='100%';
@@ -1217,7 +1218,8 @@ function site_process(siteFilter){
   // Store for comparison
   siteStore={records,dates:allDates,vehicles:allVehicles,pmap:pivot,rowSums,colSums,grand};
   cmp_userProceeded=false; // reset so diagnostic shows again on new data
-  gh_save(); // ← auto cloud-save
+  ls_saveStores(); // ← instant local save
+  gh_save();        // ← cloud save
 }
 function site_filter(){site_process(document.getElementById('site_sel').value);}
  
@@ -1526,7 +1528,7 @@ function dm_load(){
  
 function dm_clear(){
   if(!confirm('Clear all saved session data? This cannot be undone.')) return;
-  localStorage.removeItem(DM_KEY);
+  localStorage.removeItem(DM_KEY); ls_clearStores(); feStore=null; siteStore=null;
   cmp_manualMap={}; cmp_mapCount={}; cmp_remarks={}; cmp_mapMode={};
   cmp_theft={}; cmp_theftTime={}; cmp_analysisRemark={}; cmp_fillOverride={}; cmp_vehicleDone={};
   dm_showToast('🗑 Session cleared','#ef4444');
@@ -1572,8 +1574,55 @@ function dm_showLoadedBadge(){
   }, 600);
 }
  
-// Auto-load on startup
-document.addEventListener('DOMContentLoaded', ()=>{ dm_load(); gh_load(); });
+// ════════════════════════════════════════════════════════
+//  LOCAL STORE — instant restore from localStorage
+// ════════════════════════════════════════════════════════
+const LS_FE   = 'jvs_feStore_v1';
+const LS_SITE = 'jvs_siteStore_v1';
+ 
+function ls_saveStores(){
+  try {
+    if(feStore){
+      localStorage.setItem(LS_FE, JSON.stringify({
+        dates:feStore.dates, vehicles:feStore.vehicles, pmap:feStore.pmap,
+        allRows:feStore.allRows, hdrs:feStore.hdrs, inclDate:feStore.inclDate
+      }));
+    }
+  } catch(e){
+    try {
+      if(feStore) localStorage.setItem(LS_FE, JSON.stringify({
+        dates:feStore.dates, vehicles:feStore.vehicles, pmap:feStore.pmap,
+        allRows:[], hdrs:feStore.hdrs, inclDate:feStore.inclDate
+      }));
+    } catch(e2){ console.warn('ls_saveStores feStore failed:', e2); }
+  }
+  try {
+    if(siteStore) localStorage.setItem(LS_SITE, JSON.stringify({
+      dates:siteStore.dates, vehicles:siteStore.vehicles, pmap:siteStore.pmap,
+      rowSums:siteStore.rowSums, colSums:siteStore.colSums, grand:siteStore.grand
+    }));
+  } catch(e){ console.warn('ls_saveStores siteStore failed:', e); }
+}
+ 
+function ls_loadStores(){
+  try {
+    const fe   = localStorage.getItem(LS_FE);
+    const site = localStorage.getItem(LS_SITE);
+    if(fe)   feStore   = JSON.parse(fe);
+    if(site) siteStore = JSON.parse(site);
+    if(feStore)            { fe_renderPivot(); p6_render(); }
+    if(feStore||siteStore) { cmp_render();     p4_render(); }
+    if(feStore&&siteStore) { p5_render();      p7_render(); p8_render(); }
+  } catch(e){ console.warn('ls_loadStores failed:', e); }
+}
+ 
+function ls_clearStores(){
+  localStorage.removeItem(LS_FE);
+  localStorage.removeItem(LS_SITE);
+}
+ 
+// Auto-load on startup — localStorage first (instant), then GitHub (background sync)
+document.addEventListener('DOMContentLoaded', ()=>{ dm_load(); ls_loadStores(); gh_load(); });
  
 // ════════════════════════════════════════════════════════
 //  GITHUB CLOUD SYNC — fill in your details below
